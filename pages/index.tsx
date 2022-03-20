@@ -6,20 +6,42 @@ import { formatJsonRpcRequest } from '@json-rpc-tools/utils';
 import algosdk from 'algosdk';
 import {
 	apiGetAccountAssets,
+	apiGetTxnParams,
 	apiSubmitTransactions,
 	ChainType,
-	apiGetTxnParams,
+	tealProgramMake,
+	testNetClientalgod,
 } from './helpers/api';
 import { IAssetData, IWalletTransaction, SignTxnParams } from './helpers/types';
 import Modal from '../components/Modal';
 import Loader from '../components/Loader';
 import Header from '../components/Header';
-import AccountAssets from '../components/AccountAssets';
 import Body from '../components/Body';
 import ExampleSigner from '../components/ExampleSigner';
-import { Scenario, scenarios } from './scenarios';
-import { CheckCircleIcon } from '@heroicons/react/solid';
-import lsg from '../public/lsa.json';
+import MyAlgoConnect from '@randlabs/myalgo-connect';
+import HeroHome from '../components/HeroHome';
+/*
+export async function MyalgoLsig(amount: number | bigint) {
+	const myAlgoConnect = new MyAlgoConnect({ disableLedgerNano: false });
+
+	const settings = {
+		shouldSelectOneAccount: true,
+		openManager: false,
+	};
+
+	const accounts = await myAlgoConnect.connect(settings);
+	console.log(accounts);
+	const sender = accounts[0].address;
+	//const signedTxn = await myAlgoConnect.signTransaction(txn.toByte());
+	//const lsig = algosdk.makeLogicSig(new Uint8Array(Buffer.from(await tealProgramMake(10000000), "base64")));
+	//const lsig = new algosdk.LogicSigAccount(program, args);
+	const lsig = await tealProgramMake(amount);
+	const lsigs = await myAlgoConnect.signLogicSig(lsig, sender);
+
+	return lsigs;
+	//lsig.sig = await myAlgoConnect.signLogicSig(lsig.logic, sender);
+}*/
+//const signedTxn = algosdk.signLogicSigTransaction(txn, lsigs);
 
 interface IResult {
 	method: string;
@@ -48,35 +70,6 @@ interface IAppState {
 	assets: IAssetData[];
 }
 
-function signTxnWithTestAccount(txn: algosdk.Transaction): Uint8Array {
-	const sender = algosdk.encodeAddress(txn.from.publicKey);
-
-	for (const testAccount of testAccounts) {
-		if (testAccount.addr === sender) {
-			return txn.signTxn(testAccount.sk);
-		}
-	}
-
-	throw new Error(
-		`Cannot sign transaction from unknown test account: ${sender}`
-	);
-}
-
-function signTxnLogicSigWithTestAccount(txn: algosdk.Transaction): Uint8Array {
-	const sender = algosdk.encodeAddress(txn.from.publicKey);
-
-	for (const testAccount of testAccounts) {
-		if (testAccount.addr === sender) {
-			//let rawSignedTxn = algosdk.signLogicSigTransactionObject(txn, lsg)
-			return txn.signTxn(testAccount.sk);
-		}
-	}
-
-	throw new Error(
-		`Cannot sign transaction from unknown test account: ${sender}`
-	);
-}
-
 interface IScenarioTxn {
 	txn: algosdk.Transaction;
 	signers?: string[];
@@ -90,229 +83,6 @@ type Scenario1 = (
 	chain: ChainType,
 	address: string
 ) => Promise<ScenarioReturnType>;
-
-const testAccounts = [
-	//algosdk.mnemonicToSecretKey(
-	//	'cannon scatter chest item way pulp seminar diesel width tooth enforce fire rug mushroom tube sustain glide apple radar chronic ask plastic brown ability badge'
-	//),
-	algosdk.mnemonicToSecretKey(
-		'excuse help topic once acoustic decline stock insane convince dove debate main bullet violin guess anchor salt account spin unaware grain modify install absent account'
-	),
-	//process.env.TESTACCOUNT_MENMONIC
-];
-
-const singlePayTxn1: Scenario1 = async (
-	chain: ChainType,
-	address: string
-): Promise<ScenarioReturnType> => {
-	const suggestedParams = await apiGetTxnParams(chain);
-
-	const txn = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
-		from: address,
-		to: testAccounts[0].addr,
-		amount: 100000,
-		note: new Uint8Array(Buffer.from('example note value')),
-		suggestedParams,
-	});
-
-	const txnsToSign = [{ txn, message: 'This is a transaction message' }];
-	return [txnsToSign];
-};
-
-enum AssetTransactionType {
-	Transfer = 'asset-transfer',
-	OptIn = 'asset-opt-in',
-	Close = 'asset-close',
-}
-function getAssetIndex(chain: ChainType, type: AssetTransactionType): number {
-	if (chain === ChainType.MainNet) {
-		return 0;
-	}
-
-	if (type === AssetTransactionType.Transfer) {
-		return 71360698; // Jina
-	} else if (type === AssetTransactionType.Close) {
-		return 71360698; // testasset2 180132
-	} else {
-		return 71360698; // Jina
-	}
-}
-const singleAssetOptInTxn: Scenario1 = async (
-	chain: ChainType,
-	address: string
-): Promise<ScenarioReturnType> => {
-	const suggestedParams = await apiGetTxnParams(chain);
-	const assetIndex = getAssetIndex(chain, AssetTransactionType.OptIn);
-
-	const txn = algosdk.makeAssetTransferTxnWithSuggestedParamsFromObject({
-		from: address,
-		to: address,
-		amount: 0,
-		assetIndex,
-		note: new Uint8Array(Buffer.from('example note value')),
-		suggestedParams,
-	});
-
-	const txnsToSign = [{ txn }];
-	return [txnsToSign];
-};
-const singleAssetTransferTxn: Scenario1 = async (
-	chain: ChainType,
-	address: string
-): Promise<ScenarioReturnType> => {
-	const suggestedParams = await apiGetTxnParams(chain);
-	const transferAssetIndex = getAssetIndex(
-		chain,
-		AssetTransactionType.Transfer
-	);
-	const optInAssetIndex = getAssetIndex(chain, AssetTransactionType.OptIn);
-
-	const txn1 = algosdk.makeAssetTransferTxnWithSuggestedParamsFromObject({
-		from: address,
-		to: address,
-		amount: 0,
-		assetIndex: optInAssetIndex,
-		note: new Uint8Array(Buffer.from('Opt-in to jUSD')),
-		suggestedParams,
-	});
-
-	const txn2 = algosdk.makeAssetTransferTxnWithSuggestedParamsFromObject({
-		from: testAccounts[0].addr,
-		to: address,
-		amount: 10000000,
-		assetIndex: transferAssetIndex,
-		note: new Uint8Array(Buffer.from('dispencer 10 jUSD')),
-		suggestedParams,
-	});
-
-	const txnsToSign = [{ txn: txn1 }, { txn: txn2, signers: [] }];
-
-	algosdk.assignGroupID(txnsToSign.map((toSign) => toSign.txn));
-	return [txnsToSign];
-};
-const LFTAssetTransferTxn: Scenario1 = async (
-	chain: ChainType,
-	address: string
-): Promise<ScenarioReturnType> => {
-	const suggestedParams = await apiGetTxnParams(chain);
-
-	const txn1 = algosdk.makeAssetTransferTxnWithSuggestedParamsFromObject({
-		from: address,
-		to: address,
-		amount: 0,
-		assetIndex: 77141623,
-		note: new Uint8Array(Buffer.from('Opt-in to LFT-Jina')),
-		suggestedParams,
-	});
-
-	const txn2 = algosdk.makeAssetTransferTxnWithSuggestedParamsFromObject({
-		from: testAccounts[0].addr,
-		to: address,
-		amount: 4,
-		assetIndex: 77141623,
-		note: new Uint8Array(Buffer.from('dispencer 4 LFT-Jina')),
-		suggestedParams,
-	});
-
-	const txnsToSign = [{ txn: txn1 }, { txn: txn2, signers: [] }];
-
-	algosdk.assignGroupID(txnsToSign.map((toSign) => toSign.txn));
-	return [txnsToSign];
-};
-
-function getAppIndex(chain: ChainType): number {
-	if (chain === ChainType.MainNet) {
-		return 305162725;
-	}
-
-	if (chain === ChainType.TestNet) {
-		return 22314999;
-	}
-
-	throw new Error(`App not defined for chain ${chain}`);
-}
-
-const singleAppOptIn: Scenario1 = async (
-	chain: ChainType,
-	address: string
-): Promise<ScenarioReturnType> => {
-	const suggestedParams = await apiGetTxnParams(chain);
-
-	const appIndex = getAppIndex(chain);
-
-	const txn = algosdk.makeApplicationOptInTxnFromObject({
-		from: address,
-		appIndex,
-		note: new Uint8Array(Buffer.from('example note value')),
-		appArgs: [Uint8Array.from([0]), Uint8Array.from([0, 1])],
-		suggestedParams,
-	});
-
-	const txnsToSign = [{ txn }];
-	return [txnsToSign];
-};
-
-const singleAppCall: Scenario1 = async (
-	chain: ChainType,
-	address: string
-): Promise<ScenarioReturnType> => {
-	const suggestedParams = await apiGetTxnParams(chain);
-
-	const appIndex = getAppIndex(chain);
-
-	const txn = algosdk.makeApplicationNoOpTxnFromObject({
-		from: address,
-		appIndex,
-		note: new Uint8Array(Buffer.from('example note value')),
-		appArgs: [Uint8Array.from([0]), Uint8Array.from([0, 1])],
-		suggestedParams,
-	});
-
-	const txnsToSign = [{ txn }];
-	return [txnsToSign];
-};
-
-const singleAppCallNoArgs: Scenario1 = async (
-	chain: ChainType,
-	address: string
-): Promise<ScenarioReturnType> => {
-	const suggestedParams = await apiGetTxnParams(chain);
-
-	const appIndex = getAppIndex(chain);
-
-	const txn = algosdk.makeApplicationNoOpTxnFromObject({
-		from: address,
-		appIndex,
-		note: new Uint8Array(Buffer.from('example note value')),
-		appArgs: [],
-		suggestedParams,
-	});
-
-	const txnsToSign = [{ txn }];
-	return [txnsToSign];
-};
-/*
-{
-		name: 'App OPT-IN',
-		scenario1: singleAppOptIn,
-	},
-	{
-		name: 'dispencer',
-		scenario1: singleAssetTransferTxn,
-	},
-*/
-const scenarios1: Array<{ name: string; scenario1: Scenario1 }> = [
-	{
-		name: 'Dispense',
-		scenario1: singleAssetTransferTxn,
-	},
-];
-const scenarios2: Array<{ name: string; scenario1: Scenario1 }> = [
-	{
-		name: 'Dispense',
-		scenario1: LFTAssetTransferTxn,
-	},
-];
 
 const INITIAL_STATE: IAppState = {
 	connector: null,
@@ -329,8 +99,14 @@ const INITIAL_STATE: IAppState = {
 	chain: ChainType.TestNet,
 	assets: [],
 };
-
-class App extends React.Component<unknown, IAppState> {
+/*
+if (typeof window !== 'undefined') {
+	const INITIAL_STATE: IAppState = JSON.parse(
+		window.localStorage.getItem('state')
+	);
+}
+*/
+class Home extends React.Component<unknown, IAppState> {
 	public state: IAppState = {
 		...INITIAL_STATE,
 	};
@@ -352,6 +128,7 @@ class App extends React.Component<unknown, IAppState> {
 
 		// subscribe to events
 		await this.subscribeToEvents();
+		await this.JinaAppOptin();
 	};
 	public subscribeToEvents = () => {
 		const { connector } = this.state;
@@ -462,6 +239,214 @@ class App extends React.Component<unknown, IAppState> {
 			pendingSubmissions: [],
 		});
 
+	public singleJinaAppOptIn: Scenario1 = async (
+		chain: ChainType,
+		address: string
+	): Promise<ScenarioReturnType> => {
+		//
+		const suggestedParams = await apiGetTxnParams(chain);
+
+		const appIndex = 79061945;
+
+		const txn = algosdk.makeApplicationOptInTxnFromObject({
+			from: address,
+			appIndex,
+			note: new Uint8Array(Buffer.from('OptIn Jina')),
+			appArgs: [],
+			suggestedParams,
+		});
+
+		const txnsToSign = [{ txn }];
+
+		return [txnsToSign];
+	};
+	public signApp = async (scenario1: Scenario1) => {
+		const { connector, address, chain } = this.state;
+		try {
+			const txnsToSign = await scenario1(chain, address);
+			const flatTxns = txnsToSign.reduce((acc, val) => acc.concat(val), []);
+			//return [txnsToSign]
+			const walletTxns: IWalletTransaction[] = flatTxns.map(
+				({ txn, signers, authAddr, message }) => ({
+					txn: Buffer.from(algosdk.encodeUnsignedTransaction(txn)).toString(
+						'base64'
+					),
+					signers, // TODO: put auth addr in signers array
+					authAddr,
+					message,
+				})
+			);
+			// sign transaction
+			const requestParams: SignTxnParams = [walletTxns];
+			const request = formatJsonRpcRequest('algo_signTxn', requestParams);
+			const result: Array<string | null> = await connector.sendCustomRequest(
+				request
+			);
+			console.log('Raw response:', result);
+
+			const indexToGroup = (index: number) => {
+				for (let group = 0; group < txnsToSign.length; group++) {
+					const groupLength = txnsToSign[group].length;
+					if (index < groupLength) {
+						return [group, index];
+					}
+
+					index -= groupLength;
+				}
+
+				throw new Error(`Index too large for groups: ${index}`);
+			};
+
+			const signedPartialTxns: Array<Array<Uint8Array | null>> = txnsToSign.map(
+				() => []
+			);
+			result.forEach((r, i) => {
+				const [group, groupIndex] = indexToGroup(i);
+				const toSign = txnsToSign[group][groupIndex];
+
+				if (r == null) {
+					if (toSign.signers !== undefined && toSign.signers?.length < 1) {
+						signedPartialTxns[group].push(null);
+						return;
+					}
+					throw new Error(
+						`Transaction at index ${i}: was not signed when it should have been`
+					);
+				}
+
+				if (toSign.signers !== undefined && toSign.signers?.length < 1) {
+					throw new Error(
+						`Transaction at index ${i} was signed when it should not have been`
+					);
+				}
+
+				const rawSignedTxn = Buffer.from(r, 'base64');
+				signedPartialTxns[group].push(new Uint8Array(rawSignedTxn));
+			});
+			const signedTxns: Uint8Array[][] = signedPartialTxns.map(
+				(signedPartialTxnsInternal, group) => {
+					return signedPartialTxnsInternal.map((stxn, groupIndex) => {
+						if (stxn) {
+							return stxn;
+						}
+
+						return;
+					});
+				}
+			);
+			const signedTxnInfo: Array<
+				Array<{
+					txID: string;
+					signingAddress?: string;
+					signature: string;
+				} | null>
+			> = signedPartialTxns.map((signedPartialTxnsInternal, group) => {
+				return signedPartialTxnsInternal.map((rawSignedTxn, i) => {
+					if (rawSignedTxn == null) {
+						return null;
+					}
+
+					const signedTxn = algosdk.decodeSignedTransaction(rawSignedTxn);
+					const txn = signedTxn.txn as unknown as algosdk.Transaction;
+					const txID = txn.txID();
+					const unsignedTxID = txnsToSign[group][i].txn.txID();
+
+					if (txID !== unsignedTxID) {
+						throw new Error(
+							`Signed transaction at index ${i} differs from unsigned transaction. Got ${txID}, expected ${unsignedTxID}`
+						);
+					}
+
+					if (!signedTxn.sig) {
+						throw new Error(
+							`Signature not present on transaction at index ${i}`
+						);
+					}
+
+					return {
+						txID,
+						signingAddress: signedTxn.sgnr
+							? algosdk.encodeAddress(signedTxn.sgnr)
+							: undefined,
+						signature: Buffer.from(signedTxn.sig).toString('base64'),
+					};
+				});
+			});
+
+			console.log('Signed txn info:', signedTxnInfo);
+			// format displayed result
+			const formattedResult: IResult = {
+				method: 'algo_signTxn',
+				body: signedTxnInfo,
+			};
+			this.setState({
+				connector,
+				pendingRequest: false,
+				signedTxns,
+				result: formattedResult,
+			});
+
+			// Start Submitting
+			this.setState({ pendingSubmissions: signedTxns.map(() => 0) });
+			signedTxns.forEach(async (signedTxn, index) => {
+				try {
+					const confirmedRound = await apiSubmitTransactions(chain, signedTxn);
+
+					this.setState((prevState) => {
+						return {
+							pendingSubmissions: prevState.pendingSubmissions.map((v, i) => {
+								if (index === i) {
+									return confirmedRound;
+								}
+								return v;
+							}),
+						};
+					});
+
+					console.log(`Transaction confirmed at round ${confirmedRound}`);
+				} catch (err) {
+					this.setState((prevState) => {
+						return {
+							pendingSubmissions: prevState.pendingSubmissions.map((v, i) => {
+								if (index === i) {
+									return err;
+								}
+								return v;
+							}),
+						};
+					});
+
+					console.error(`Error submitting transaction at index ${index}:`, err);
+				}
+			});
+		} catch (error) {
+			console.error(error);
+			this.setState({ connector, pendingRequest: false, result: null });
+		}
+	};
+	public scenarios: Array<{ name: string; scenario1: Scenario1 }> = [
+		{
+			name: 'Optin To Jina',
+			scenario1: this.singleJinaAppOptIn,
+		},
+	];
+	public JinaAppOptin = async () => {
+		const { connector } = this.state;
+
+		if (!connector) {
+			return;
+		}
+
+		// open Modal and prompt to optin, if not already
+		this.toggleModal();
+
+		this.setState({ pendingRequest: true, showModal: true });
+		//await testNetClientalgod.accountApplicationInformation(address,index).do()
+	};
+	public confirmOptin = async () => {
+		await this.scenarios.map(({ name, scenario1 }) => this.signApp(scenario1));
+	};
+
 	public signTxnScenario = async (scenario1: Scenario1) => {
 		const { connector, address, chain } = this.state;
 
@@ -547,7 +532,7 @@ class App extends React.Component<unknown, IAppState> {
 							return stxn;
 						}
 
-						return signTxnWithTestAccount(txnsToSign[group][groupIndex].txn);
+						return; //signTxnWithTestAccount(txnsToSign[group][groupIndex].txn);
 					});
 				}
 			);
@@ -666,12 +651,7 @@ class App extends React.Component<unknown, IAppState> {
 			pendingSubmissions,
 			result,
 		} = this.state;
-		const JINAtoken = assets.find(
-			(asset: IAssetData) => asset && asset.id === 71360698
-		);
-		const LOFTYtoken = assets.find(
-			(asset: IAssetData) => asset && asset.id === 77141623
-		);
+
 		return (
 			<div>
 				<div>
@@ -687,7 +667,6 @@ class App extends React.Component<unknown, IAppState> {
 							<>
 								<div className='flex space-x-4 items-center'>
 									<p className='link'>About</p>
-									{/* <p className='link'>Whitepaper</p> */}
 								</div>
 								<div className='flex space-x-4 items-center'>
 									<div className='relative group'>
@@ -702,30 +681,17 @@ class App extends React.Component<unknown, IAppState> {
 								</div>
 							</>
 						) : (
-							<div>
-								{/* <h3>10 Jina dispencer</h3>
-								{!fetching ? <AccountAssets assets={assets} /> : <div />}
-								<div className='content-center'>
-									<div>
-										{scenarios1.map(({ name, scenario1 }) => (
-											<button
-												className='relative px-7 py-2 rounded-md leading-none flex items-center bg-[#2CB7BC] text-gray-100 opacity-75 hover:opacity-100'
-												key={name}
-												onClick={() => this.signTxnScenario(scenario1)}
-											>
-												{name}
-											</button>
-										))}
-									</div>
-								</div> */}
-							</div>
+							<>
+								<p>Here add the configure for NFT</p>
+							</>
 						)}
 					</header>
 					<div>
 						{/* Body */}
 						{!address && !assets.length ? (
 							<>
-								<ExampleSigner />
+								{/* <ExampleSigner /> */}
+								<HeroHome />
 							</>
 						) : (
 							<Body
@@ -741,12 +707,28 @@ class App extends React.Component<unknown, IAppState> {
 					{pendingRequest ? (
 						<div className='w-full relative break-words'>
 							<div className='mt-1 mb-0 font-bold text-xl'>
-								{'Pending Call Request'}
+								{'OptIn To Jina-App'}
 							</div>
 							<div className='h-full min-h-2 flex flex-col justify-center items-center break-words'>
 								<Loader />
-								<p className='mt-8'>
+								{/* Click to activate optin */}
+								{this.scenarios.map(({ name, scenario1 }) => (
+									<button
+										className='relative mt-6 px-6 py-1 sm:px-7 sm:py-2 rounded-md leading-none flex items-center bg-[#18393a] text-gray-100'
+										key={name}
+										onClick={(e) => {
+											e.preventDefault();
+											this.signApp(scenario1);
+										}}
+									>
+										{name}
+									</button>
+								))}
+								<p className='mt-4'>
 									{'Approve or reject request using your wallet'}
+								</p>
+								<p className=' mt-0.5 text-red-500'>
+									{'OptIn, only If you have not done so before'}
 								</p>
 							</div>
 						</div>
@@ -755,35 +737,6 @@ class App extends React.Component<unknown, IAppState> {
 							<div className='mt-1 mb-0 font-bold text-xl'>
 								{'Call Request Approved'}
 							</div>
-							<div className='flex flex-col text-left'>
-								<div className='w-full flex mt-1 mb-0'>
-									<div className='w-1/3 font-bold'>Method</div>
-									<div className='w-2/3 font-mono'>{result.method}</div>
-								</div>
-								{result.body.map((signedTxns, index) => (
-									<div className='w-full flex mt-1 mb-0' key={index}>
-										<div className='w-1/3 font-bold'>{`Atomic group ${index}`}</div>
-										<div className='w-2/3 font-mono'>
-											{signedTxns.map((txn, txnIndex) => (
-												<div key={txnIndex}>
-													{!!txn?.txID && <p>TxID: {txn.txID}</p>}
-													{!!txn?.signature && <p>Sig: {txn.signature}</p>}
-													{!!txn?.signingAddress && (
-														<p>AuthAddr: {txn.signingAddress}</p>
-													)}
-												</div>
-											))}
-										</div>
-									</div>
-								))}
-							</div>
-							<button
-								className='relative px-6 py-1 sm:px-7 sm:py-2 rounded-md leading-none flex items-center bg-[#18393a] text-gray-100 opacity-100 hover:opacity-75'
-								onClick={() => this.submitSignedTransaction()}
-								disabled={pendingSubmissions.length !== 0}
-							>
-								{'Submit transaction to network.'}
-							</button>
 							{pendingSubmissions.map((submissionInfo, index) => {
 								const key = `${index}:${
 									typeof submissionInfo === 'number' ? submissionInfo : 'err'
@@ -801,9 +754,25 @@ class App extends React.Component<unknown, IAppState> {
 								}
 
 								return (
-									<div className='mt-1 mb-0 font-bold text-xl' key={key}>
-										{prefix + content}
-									</div>
+									<>
+										<div className='flex flex-col text-left'>
+											{result.body.map((signedTxns, index) => (
+												<div className='w-full flex mt-1 mb-0' key={index}>
+													<div className='w-1/6 font-bold'>{`TxID: `}</div>
+													<div className='w-10/12 font-mono'>
+														{signedTxns.map((txn, txnIndex) => (
+															<div key={txnIndex}>
+																{!!txn?.txID && <p>{txn.txID}</p>}
+															</div>
+														))}
+													</div>
+												</div>
+											))}
+										</div>
+										<div className='mt-1 mb-0 font-bold text-xl' key={key}>
+											{content}
+										</div>
+									</>
 								);
 							})}
 						</div>
@@ -820,4 +789,4 @@ class App extends React.Component<unknown, IAppState> {
 	};
 }
 
-export default App;
+export default Home;

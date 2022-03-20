@@ -1,0 +1,22 @@
+#pragma version 4
+ // Check the Fee is resonable, less than 2 * Minimum fee
+ txn Fee
+ global MinTxnFee
+ int 2
+ *
+ <=
+ // Check the Transaction type is AssetTransfer
+ txn TypeEnum
+ int axfer
+ ==
+ &&
+ // Check the asset is jUSD
+ txn XferAsset
+ int 71360698
+ ==
+ &&
+// Check if amount requested is less than or equal to 10jUSD
+ txn AssetAmount
+ int 10000000
+ <=
+ &&

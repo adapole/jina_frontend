@@ -1,11 +1,10 @@
 import '../styles/globals.css';
-import App from './app';
+import Home from './index';
 
-function MyApp({ Component, pageProps }) {
+function MyApp() {
 	return (
 		<>
-			<App />
-			{/* <Component {...pageProps} /> */}
+			<Home />
 		</>
 	);
 }

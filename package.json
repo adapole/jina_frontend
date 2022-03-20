@@ -2,7 +2,7 @@
 	"name": "jina-frontend",
 	"private": true,
 	"scripts": {
-		"dev": "next dev -p 3005",
+		"dev": "next dev",
 		"build": "next build",
 		"start": "next start",
 		"lint": "next lint"
@@ -12,9 +12,11 @@
 		"@dicebear/avatars": "^4.10.2",
 		"@heroicons/react": "^1.0.5",
 		"@json-rpc-tools/utils": "^1.7.6",
+		"@randlabs/myalgo-connect": "^1.1.2",
 		"@walletconnect/client": "^1.7.0",
 		"algorand-walletconnect-qrcode-modal": "^1.6.1",
-		"algosdk": "^1.13.0-beta.2",
+		"algosdk": "^1.14.0",
+		"firebase": "^9.6.9",
 		"next": "12.0.7",
 		"react": "17.0.2",
 		"react-dom": "17.0.2",
@@ -23,6 +25,7 @@
 		"tailwind-scrollbar-hide": "^1.1.7"
 	},
 	"devDependencies": {
+		"@types/aos": "^3.0.4",
 		"@types/react": "^17.0.38",
 		"autoprefixer": "^10.4.0",
 		"eslint": "8.5.0",

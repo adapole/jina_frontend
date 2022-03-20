@@ -5,7 +5,6 @@ import {
 	apiGetTxnParams,
 	apiSubmitTransactions,
 } from '../pages/helpers/api';
-import lsa from '../public/lsa.json';
 
 const appId = 13793863;
 
