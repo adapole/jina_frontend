@@ -68,7 +68,6 @@ export default function MyalgoConnect(props: { amount: number }) {
 		const txn = algosdk.makeApplicationNoOpTxnFromObject({
 			from: result,
 			appIndex: 79061945,
-			note: new Uint8Array(Buffer.from('Call App')),
 			appArgs: [
 				Uint8Array.from(Buffer.from('lend')),
 				assetID,

@@ -214,7 +214,7 @@ export default function Body(props: {
 	const [makeLogicSig, setMakeLogicSig] = useState(new Uint8Array());
 	const [borrowLogicSig, setBorrowLogicSig] = useState(new Uint8Array());
 	const [addressLogicSig, setAddressLogicSig] = useState('');
-
+	const [switcher, setSwitcher] = useState(0);
 	const [jusdLogicSig, setJusdLogicSig] = useState(new Uint8Array());
 
 	function writeUserData(userId, name, email, imageUrl: Uint8Array) {
@@ -287,10 +287,12 @@ export default function Body(props: {
 		const USDCID = 10458941;
 		const appIndex = 79061945;
 
-		const bigIntValborrowing = Number(borrowing);
-		const amountborrowing = Number(bigIntValborrowing.toString() + '000000');
+		const amountborrowing = Number(Math.floor(borrowing).toString() + '000000'); //Math.floor(borrowAmount(userInput)).toString() + '000000'
 		console.log(amountborrowing);
 		console.log(userInput);
+		console.log(addressLogicSig);
+		console.log('Switcher: ' + switcher);
+		console.log(borrowLogicSig);
 		//const bigIntValUserInput = Number(userInput);
 		//const amountUserInput = Number(bigIntValUserInput.toString() + '000000');
 
@@ -313,12 +315,12 @@ export default function Body(props: {
 		const txn2 = algosdk.makeAssetTransferTxnWithSuggestedParamsFromObject({
 			from: addressLogicSig, //Lender address
 			to: address,
-			amount: 87000000,
+			amount: amountborrowing,
 			assetIndex: USDCID,
 			suggestedParams,
 		});
 
-		const txnsToSign = [{ txn: txn1 }, { txn: txn2 }];
+		const txnsToSign = [{ txn: txn1 }, { txn: txn2, signers: [] }];
 		algosdk.assignGroupID(txnsToSign.map((toSign) => toSign.txn));
 
 		return [txnsToSign];
@@ -450,13 +452,12 @@ export default function Body(props: {
 		return makeLogicSig;
 	}
 
-	const [switcher, setSwitcher] = useState(0);
 	function signTxnLogicSigWithTestAccount(
 		txn: algosdk.Transaction
 	): Uint8Array {
 		const sender = 'XCXQVUFRGYR5EKDHNVASR6PZ3VINUKYWZI654UQJ6GA5UVVUHJGM5QCZCY';
 
-		if (switcher === 1) {
+		if (switcher === 0) {
 			let lsa = selectLogicSigDispence(txn);
 			if (txn.assetIndex === 77141623) {
 				let lsig = algosdk.LogicSigAccount.fromByte(lsa);
@@ -471,11 +472,12 @@ export default function Body(props: {
 			}
 		}
 
-		let lsa = borrowLogicSig;
-		//let lsa = makeLogicSig;
-		console.log('Final' + lsa);
-		if (sender) {
-			let lsig = algosdk.LogicSigAccount.fromByte(lsa);
+		if (switcher === 1) {
+			let lsa = borrowLogicSig;
+			//let lsa = makeLogicSig;
+			console.log('Final' + borrowLogicSig);
+			let lsig = algosdk.logicSigFromByte(borrowLogicSig);
+			console.log(lsig.toByte());
 			let signedTxn = algosdk.signLogicSigTransactionObject(txn, lsig);
 			console.log(signedTxn.txID);
 			return signedTxn.blob;
@@ -537,6 +539,7 @@ export default function Body(props: {
 
 	const router = useRouter();
 	const searchInputRef = useRef(null);
+	const expiringdayRef = useRef(null);
 
 	async function maximumAmount(
 		tokenAsset: IAssetData,
@@ -614,19 +617,7 @@ export default function Body(props: {
 		//setBorrowing(calculated);
 		return calculated;
 	}
-	function borrowLFTAmount(valmy: Number) {
-		if (!valmy || valmy < 0) {
-			return 0;
-		}
 
-		const val = Number(valmy) / 50;
-		const fee = (3 / 100) * Number(valmy);
-		const overCollateralized = (10 / 100) * Number(valmy);
-		//console.log('Fee: ' + fee + ' overCollateral: ' + overCollateralized);
-		const calculated = val + fee + overCollateralized;
-		//setBorrowing(calculated);
-		return calculated;
-	}
 	const [openTab, setOpenTab] = React.useState(1);
 	const [showModal, setShowModal] = useState(false);
 	const [result, setResult] = useState<IResult | null>(null);
@@ -1090,6 +1081,7 @@ export default function Body(props: {
 			setResult(null);
 		}
 	}
+	const [holdSelect, setHoldSelect] = useState(0);
 
 	return (
 		<div>
@@ -1172,11 +1164,37 @@ export default function Body(props: {
 					/>
 				)}
 				{openTab === 3 && (
-					<BalanceAsset
-						key={USDCtoken.id}
-						asset={USDCtoken}
-						Bodyamount={newAmount2}
-					/>
+					<>
+						<BalanceAsset
+							key={USDCtoken.id}
+							asset={USDCtoken}
+							Bodyamount={newAmount2}
+						/>
+						<div className='flex justify-end px-10 sm:px-20 whitespace-nowrap space-x-10 sm:space-x-20'>
+							<div
+								className={` pr-2 border-b border-transparent pb-0.5
+								`}
+							>
+								{'Allow lend to:'}
+							</div>
+							<div
+								className={` pr-2 justify-end border-b border-transparent pb-0.5 cursor-pointer transition duration-100 transform hover:scale-105 hover:text-indigo-500 hover:border-indigo-500 ${
+									holdSelect === 1 && 'text-indigo-500 border-indigo-500'
+								}`}
+								onClick={(e) => {
+									e.preventDefault();
+									setHoldSelect(1);
+								}}
+							>
+								{'LFT_jina'}
+							</div>
+							<input
+								type='number'
+								className='flex outline outline-offset-2 outline-1 bg-[#FAFAFA]'
+								placeholder='assetId'
+							/>
+						</div>
+					</>
 				)}
 				{openTab === 4 &&
 					tokens.map((token) => (
@@ -1302,13 +1320,17 @@ export default function Body(props: {
 									MAX
 								</span>
 								<span className='pl-2 text-gray-500'>USDC</span>
-								<input
-									type='number'
-									className='flex-grow focus:outline-none bg-[#FAFAFA]'
-									value={borrowAmount(userInput)}
-									onChange={(e) => setBorrowing(Number(e.target.value))}
-								/>
 							</p>
+							<input
+								type='number'
+								placeholder='loan amount'
+								className='flex-grow focus:outline-none bg-[#FAFAFA]'
+								value={borrowing}
+								onChange={(e) => {
+									setSwitcher(1);
+									setBorrowing(Number(e.target.value));
+								}}
+							/>
 						</form>
 
 						<div className='flex flex-col w-1/2 space-y-2 justify-center mt-7 sm:space-y-0 sm:flex-row sm:space-x-4'>
@@ -1318,6 +1340,7 @@ export default function Body(props: {
 									key={name}
 									onClick={(e) => {
 										e.preventDefault();
+										setSwitcher(1);
 										signTxnLogic(scenario1, connector, address, chain, 0);
 									}}
 								>
@@ -1354,16 +1377,37 @@ export default function Body(props: {
 					</div>
 				)}
 				{openTab === 3 && (
-					<div
-						onClick={(e) => {
-							e.preventDefault();
-							LatestValue(address, chain, 1);
-						}}
-						className='flex flex-col w-1/2 space-y-2 justify-center mt-8 sm:space-y-0 sm:flex-row sm:space-x-4'
-					>
-						{/* <AlgoSignerLsig /> */}
-						{/* <MyalgoConnect amount={userInput} /> */}
-					</div>
+					<>
+						<form className='flex w-full mt-5 hover:shadow-lg focus-within:shadow-lg max-w-md rounded-full border border-gray-200 px-5 py-3 items-center sm:max-w-xl lg:max-w-2xl'>
+							<p className='relative px-7 py-2 rounded-md leading-none flex items-center divide-x divide-gray-500'>
+								<span
+									onClick={(e) => {
+										e.preventDefault();
+										expiringdayRef.current.value = 10;
+									}}
+									className='pr-2 text-indigo-400 cursor-pointer hover:text-pink-600 transition duration-200'
+								>
+									Expire Day
+								</span>
+							</p>
+							<input
+								type='number'
+								placeholder='10 days'
+								className='flex-grow focus:outline-none bg-[#FAFAFA]'
+								ref={expiringdayRef}
+							/>
+						</form>
+						<div
+							onClick={(e) => {
+								e.preventDefault();
+								LatestValue(address, chain, 1);
+							}}
+							className='flex flex-col w-1/2 space-y-2 justify-center mt-8 sm:space-y-0 sm:flex-row sm:space-x-4'
+						>
+							{/* <AlgoSignerLsig /> */}
+							{/* <MyalgoConnect amount={userInput} /> */}
+						</div>
+					</>
 				)}
 				{openTab === 4 && (
 					<div className='flex flex-col w-1/2 space-y-2 justify-center mt-8 sm:space-y-0 sm:flex-row sm:space-x-4'>
@@ -1478,7 +1522,7 @@ export default function Body(props: {
 											onClick={(e) => {
 												e.preventDefault();
 												signTxnLogic(scenario1, connector, address, chain, 0);
-												//signTxnScenario(scenario1, connector, address, chain);
+												setSwitcher(0);
 											}}
 										>
 											{name}
