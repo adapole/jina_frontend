@@ -3,12 +3,14 @@ This is a [Next.js](https://nextjs.org/) project bootstrapped with [`create-next
 ## Getting Started
 
 First, update the (./pages/helpers/api.ts) 'X-API-Key' with your own purestake API-KEY
+
 ```bash
 const token = {
 	'X-API-Key': '<Your-API-Here>',
 };
 ```
-Rename (./pages/firebase.js.example) to a js file.
+
+Setup Firebase Realtime Database,
 
 And follow instructions on [https://firebase.google.com/] on how to create Realtime Database
 
@@ -21,8 +23,6 @@ yarn dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-
 
 ## Learn More
 
