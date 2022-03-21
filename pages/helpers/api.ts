@@ -12,7 +12,7 @@ const baseServer = 'https://testnet-algorand.api.purestake.io/ps2';
 const baseServerIndexer = 'https://testnet-algorand.api.purestake.io/idx2';
 const port = '';
 const token = {
-	'X-API-Key': '',
+	'X-API-Key': '<Your-API-Here>',
 };
 
 export const testNetClientalgod = new algosdk.Algodv2(token, baseServer, port);
@@ -44,7 +44,7 @@ export async function tealProgramDispence(
 	let results = await testNetClientalgod.compile(data).do();
 	console.log('Hash = ' + results.hash);
 	console.log('Result = ' + results.result);
-	let myAccount = algosdk.mnemonicToSecretKey('');
+	let myAccount = algosdk.mnemonicToSecretKey(' <memonic-of-dispencer>');
 
 	let program = new Uint8Array(Buffer.from(results.result, 'base64'));
 	//let round = params.firstRound + 172800;
@@ -75,76 +75,8 @@ export async function tealProgramMake(amount: number) {
 	let args = getUint8Args(amount, round);
 	let lsig = new algosdk.LogicSigAccount(program, args);
 	return lsig.toByte();
-
-	//const fs = require('fs');
-	//fs.writeFileSync('./SigSign.json', JSON.stringify(lsig), 'utf-8');
-	//let lsa = fs.readFileSync('./SigSign.json', 'utf-8');
-	//console.log(lsa);
-
-	/*
-	let sender = myAccount.addr;
-	let receiver = 'KT6BXV32VUWBKJPFWYJOUHQEOIRHWTL2CONOVF5SANY4INGA73UGATOWPI';
-
-	let amount = 10000;
-	let closeToRemaninder = undefined;
-	let note = undefined;
-	let txn = algosdk.makePaymentTxnWithSuggestedParams(
-		sender,
-		receiver,
-		amount,
-		closeToRemaninder,
-		note,
-		params
-	);
-	
-	const borrowerAdd = 'GO7DNCP7E22OZB22ZIYMUKWQEOSJJ3VELJXUKG2BYHWSTO7P6PTKVPDVBQ'
-	const suggestedParams = await apiGetTxnParams(ChainType.TestNet)
-	const txn1 = algosdk.makeApplicationNoOpTxnFromObject({
-		from: borrowerAdd,
-		appIndex: 77600054,
-		appArgs: [Uint8Array.from(Buffer.from('borrow'))],
-		accounts: [
-			'HKOTQQU55JPUPJZLXIEXSITGGFIIGVCZXLT62XZ4EIOPKIAXRNINXAMJTI',
-			'KT6BXV32VUWBKJPFWYJOUHQEOIRHWTL2CONOVF5SANY4INGA73UGATOWPI',
-		],
-		foreignAssets: [77141623, 71360698],
-		suggestedParams,
-	});
-	const txn2 = algosdk.makeAssetTransferTxnWithSuggestedParamsFromObject({
-		from: 'HKOTQQU55JPUPJZLXIEXSITGGFIIGVCZXLT62XZ4EIOPKIAXRNINXAMJTI',
-		to: borrowerAdd,
-		amount: 0,
-		assetIndex: 10458941,
-		note: new Uint8Array(Buffer.from('Opt-in to jUSD')),
-		suggestedParams,
-	});
-	
-	// Create the LogicSigTransaction with contract account LogicSig
-	let rawSignedTxn = algosdk.signLogicSigTransactionObject(txn, lsig);
-	// fs.writeFileSync("simple.stxn", rawSignedTxn.blob);
-	// send raw LogicSigTransaction to network
-	let tx = await testNetClientalgod.sendRawTransaction(rawSignedTxn.blob).do();
-	console.log('Transaction : ' + tx.txId);
-	const confirmedTxn = await algosdk.waitForConfirmation(
-		testNetClientalgod,
-		tx.txId,
-		4
-	);
-	//Get the completed Transaction
-	console.log(
-		'Transaction ' +
-			tx.txId +
-			' confirmed in round ' +
-			confirmedTxn['confirmed-round']
-	);
-	*/
 }
-function getUint8Int(number) {
-	const buffer = Buffer.alloc(8);
-	const bigIntValue = BigInt(number);
-	buffer.writeBigUInt64BE(bigIntValue);
-	return [Uint8Array.from(buffer)];
-}
+
 function getUint8Args(amount: number, round: number) {
 	return [
 		algosdk.encodeUint64(10458941),

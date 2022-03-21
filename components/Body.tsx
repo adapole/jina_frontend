@@ -29,7 +29,6 @@ import WalletConnect from '@walletconnect/client';
 import Modal from './Modal';
 import Loader from './Loader';
 import AlgoSignerLsig from './AlgoSignerLsig';
-//import { MyalgoLsig } from '../pages/index';
 import firebase from '../pages/firebase';
 import { collection, addDoc, getFirestore } from 'firebase/firestore';
 import { child, get, getDatabase, ref, set } from 'firebase/database';
@@ -44,22 +43,6 @@ interface IResult {
 			signature: string;
 		} | null>
 	>;
-}
-
-const testAccounts = [algosdk.mnemonicToSecretKey('')];
-function signTxnWithTestAccount(txn: algosdk.Transaction): Uint8Array {
-	const sender = algosdk.encodeAddress(txn.from.publicKey);
-
-	for (const testAccount of testAccounts) {
-		if (testAccount.addr === sender) {
-			let signedTxn = algosdk.signTransaction(txn, testAccount.sk);
-			return signedTxn.blob;
-		}
-	}
-
-	throw new Error(
-		`Cannot sign transaction from unknown test account: ${sender}`
-	);
 }
 
 function getAssetIndex(chain: ChainType, type: AssetTransactionType): number {
@@ -228,23 +211,10 @@ export default function Body(props: {
 }) {
 	const { assets, connector, address, chain } = props;
 	//console.log(lsa);
-	//let str = JSON.stringify(lsa, null, 0);
-	//let lsaByte = algosdk.encodeObj(lsa);
-	//console.log(lsaByte);
-	async function firebaseFirestore() {
-		try {
-			const db = getFirestore();
-			const docRef = await addDoc(collection(db, 'users'), {
-				first: 'Ada',
-				last: 'Lovelace',
-				born: 1815,
-			});
-			console.log('Document written with ID: ', docRef.id);
-		} catch (e) {
-			console.error('Error adding document: ', e);
-		}
-	}
 	const [makeLogicSig, setMakeLogicSig] = useState(new Uint8Array());
+	const [borrowLogicSig, setBorrowLogicSig] = useState(new Uint8Array());
+	const [addressLogicSig, setAddressLogicSig] = useState('');
+
 	const [jusdLogicSig, setJusdLogicSig] = useState(new Uint8Array());
 
 	function writeUserData(userId, name, email, imageUrl: Uint8Array) {
@@ -279,10 +249,198 @@ export default function Body(props: {
 			});
 		return makeLogicSig;
 	}
+	function readBorrowData(userId: string): Uint8Array {
+		const dbRef = ref(getDatabase(firebase));
+		get(child(dbRef, `users/${userId}`))
+			.then((snapshot) => {
+				if (snapshot.exists()) {
+					console.log(snapshot.val().profile_picture);
+					let lsaval: Uint8Array = snapshot.val().uint8_lsa;
+					let addval: string = snapshot.val().useraddress;
+					setAddressLogicSig(addval);
+					setBorrowLogicSig(lsaval);
+					console.log(lsaval);
+					console.log(addval);
+				} else {
+					console.log('No data available');
+					return;
+				}
+			})
+			.catch((error) => {
+				console.error(error);
+			});
+		return borrowLogicSig;
+	}
+	const [newAmount, setNewAmount] = useState('');
+	const [newAmount2, setNewAmount2] = useState('');
+	const [newAmount3, setNewAmount3] = useState('');
+	const [userInput, setUserInput] = useState(0);
+	const [borrowing, setBorrowing] = useState(0);
+	const borrowAppCall: Scenario = async (
+		chain: ChainType,
+		address: string
+	): Promise<ScenarioReturnType> => {
+		const suggestedParams = await apiGetTxnParams(chain);
+		const LFTJinaID = 77141623;
+		const JusdID = 79077841;
+		const liquidateID = 79206825;
+		const USDCID = 10458941;
+		const appIndex = 79061945;
+
+		const bigIntValborrowing = Number(borrowing);
+		const amountborrowing = Number(bigIntValborrowing.toString() + '000000');
+		console.log(amountborrowing);
+		console.log(userInput);
+		//const bigIntValUserInput = Number(userInput);
+		//const amountUserInput = Number(bigIntValUserInput.toString() + '000000');
+
+		const assetID = algosdk.encodeUint64(LFTJinaID);
+		//const amount64 = algosdk.encodeUint64(1);
+		const Useramount64 = algosdk.encodeUint64(userInput);
+		// change appIndex to BigEndian
+		suggestedParams.flatFee = true;
+		suggestedParams.fee = 4000;
+		const txn1 = algosdk.makeApplicationNoOpTxnFromObject({
+			from: address,
+			appIndex,
+			appArgs: [Uint8Array.from(Buffer.from('borrow')), assetID, Useramount64],
+			foreignApps: [liquidateID],
+			foreignAssets: [LFTJinaID, JusdID],
+			accounts: [addressLogicSig], //Lender address
+			suggestedParams,
+		});
+		suggestedParams.fee = 0;
+		const txn2 = algosdk.makeAssetTransferTxnWithSuggestedParamsFromObject({
+			from: addressLogicSig, //Lender address
+			to: address,
+			amount: 87000000,
+			assetIndex: USDCID,
+			suggestedParams,
+		});
+
+		const txnsToSign = [{ txn: txn1 }, { txn: txn2 }];
+		algosdk.assignGroupID(txnsToSign.map((toSign) => toSign.txn));
+
+		return [txnsToSign];
+	};
+	const claimUSDCcall: Scenario = async (
+		chain: ChainType,
+		address: string
+	): Promise<ScenarioReturnType> => {
+		const suggestedParams = await apiGetTxnParams(chain);
+
+		const appIndex = 79061945;
+
+		const bigIntVal = Number(userInput);
+		const amount = Number(bigIntVal.toString() + '000000');
+		console.log(amount);
+		//const assetID = algosdk.encodeUint64(77141623);
+		//const amount64 = algosdk.encodeUint64(1);
+		// change appIndex to BigEndian
+		const txn1 = algosdk.makeApplicationNoOpTxnFromObject({
+			from: address,
+			appIndex,
+			appArgs: [Uint8Array.from(Buffer.from('claim'))],
+			foreignAssets: [10458941],
+			suggestedParams,
+		});
+		suggestedParams.flatFee = true;
+		suggestedParams.fee = 2000;
+		const txn2 = algosdk.makeAssetTransferTxnWithSuggestedParamsFromObject({
+			from: address,
+			to: algosdk.getApplicationAddress(appIndex),
+			amount: amount,
+			assetIndex: 79077841,
+			suggestedParams,
+		});
+
+		const txnsToSign = [{ txn: txn1 }, { txn: txn2 }];
+		algosdk.assignGroupID(txnsToSign.map((toSign) => toSign.txn));
+		return [txnsToSign];
+	};
+	const repayUSDCcall: Scenario = async (
+		chain: ChainType,
+		address: string
+	): Promise<ScenarioReturnType> => {
+		const suggestedParams = await apiGetTxnParams(chain);
+		const LFTJinaID = 77141623;
+		const USDCID = 10458941;
+		const appIndex = 79061945;
+
+		const bigIntVal = Number(userInput);
+		const amount = Number(bigIntVal.toString() + '000000');
+		console.log(amount);
+		suggestedParams.flatFee = true;
+		suggestedParams.fee = 3000;
+		const txn1 = algosdk.makeApplicationNoOpTxnFromObject({
+			from: address,
+			appIndex,
+			appArgs: [Uint8Array.from(Buffer.from('repay'))],
+			foreignAssets: [LFTJinaID],
+			suggestedParams,
+		});
+		suggestedParams.fee = 0;
+		const txn2 = algosdk.makeAssetTransferTxnWithSuggestedParamsFromObject({
+			from: address,
+			to: algosdk.getApplicationAddress(appIndex),
+			amount: amount,
+			assetIndex: USDCID,
+			suggestedParams,
+		});
+
+		const txnsToSign = [{ txn: txn1 }, { txn: txn2 }];
+		algosdk.assignGroupID(txnsToSign.map((toSign) => toSign.txn));
+		return [txnsToSign];
+	};
+	const singleAppClearState: Scenario = async (
+		chain: ChainType,
+		address: string
+	): Promise<ScenarioReturnType> => {
+		const suggestedParams = await apiGetTxnParams(chain);
+
+		const appIndex = 77600054;
+
+		const txn = algosdk.makeApplicationClearStateTxnFromObject({
+			from: address,
+			appIndex,
+			note: new Uint8Array(Buffer.from('example note value')),
+			appArgs: [Uint8Array.from([0]), Uint8Array.from([0, 1])],
+			suggestedParams,
+		});
+
+		const txnsToSign = [
+			{
+				txn,
+				message: 'This transaction will forcibly opt you out of the test app.',
+			},
+		];
+		return [txnsToSign];
+	};
+	const Claimscenarios: Array<{ name: string; scenario1: Scenario }> = [
+		{
+			name: 'Claim USDC',
+			scenario1: claimUSDCcall,
+		},
+	];
+	const Repayscenarios: Array<{ name: string; scenario1: Scenario }> = [
+		{
+			name: 'Repay',
+			scenario1: repayUSDCcall,
+		},
+	];
+	const Borrowscenarios: Array<{ name: string; scenario1: Scenario }> = [
+		{
+			name: 'Borrow',
+			scenario1: borrowAppCall,
+		},
+	];
+
 	useEffect(() => {
 		readUserData(2);
 		readUserData(1);
+		readBorrowData('-Myf8-xB1ehSbc2gum5r');
 	}, []);
+
 	function selectLogicSigDispence(txn: algosdk.Transaction): Uint8Array {
 		if (txn.assetIndex === 77141623) {
 			return makeLogicSig;
@@ -292,25 +450,38 @@ export default function Body(props: {
 		return makeLogicSig;
 	}
 
+	const [switcher, setSwitcher] = useState(0);
 	function signTxnLogicSigWithTestAccount(
 		txn: algosdk.Transaction
 	): Uint8Array {
 		const sender = 'XCXQVUFRGYR5EKDHNVASR6PZ3VINUKYWZI654UQJ6GA5UVVUHJGM5QCZCY';
-		let lsa = selectLogicSigDispence(txn);
+
+		if (switcher === 1) {
+			let lsa = selectLogicSigDispence(txn);
+			if (txn.assetIndex === 77141623) {
+				let lsig = algosdk.LogicSigAccount.fromByte(lsa);
+				let signedTxn = algosdk.signLogicSigTransactionObject(txn, lsig);
+				console.log(signedTxn.txID);
+				return signedTxn.blob;
+			} else if (txn.assetIndex === 79077841) {
+				let lsig = algosdk.LogicSigAccount.fromByte(lsa);
+				let signedTxn = algosdk.signLogicSigTransactionObject(txn, lsig);
+				console.log(signedTxn.txID);
+				return signedTxn.blob;
+			}
+		}
+
+		let lsa = borrowLogicSig;
 		//let lsa = makeLogicSig;
 		console.log('Final' + lsa);
-
-		if (txn.assetIndex === 77141623) {
-			let lsig = algosdk.LogicSigAccount.fromByte(lsa);
-			let signedTxn = algosdk.signLogicSigTransactionObject(txn, lsig);
-			console.log(signedTxn.txID);
-			return signedTxn.blob;
-		} else if (txn.assetIndex === 79077841) {
+		if (sender) {
 			let lsig = algosdk.LogicSigAccount.fromByte(lsa);
 			let signedTxn = algosdk.signLogicSigTransactionObject(txn, lsig);
 			console.log(signedTxn.txID);
 			return signedTxn.blob;
 		}
+		/*
+		 */
 
 		throw new Error(
 			`Cannot sign transaction from unknown test account: ${sender}`
@@ -366,7 +537,6 @@ export default function Body(props: {
 
 	const router = useRouter();
 	const searchInputRef = useRef(null);
-	const [userInput, setUserInput] = useState(0);
 
 	async function maximumAmount(
 		tokenAsset: IAssetData,
@@ -441,6 +611,20 @@ export default function Body(props: {
 		const overCollateralized = (10 / 100) * val;
 		//console.log('Fee: ' + fee + ' overCollateral: ' + overCollateralized);
 		const calculated = val - fee - overCollateralized;
+		//setBorrowing(calculated);
+		return calculated;
+	}
+	function borrowLFTAmount(valmy: Number) {
+		if (!valmy || valmy < 0) {
+			return 0;
+		}
+
+		const val = Number(valmy) / 50;
+		const fee = (3 / 100) * Number(valmy);
+		const overCollateralized = (10 / 100) * Number(valmy);
+		//console.log('Fee: ' + fee + ' overCollateral: ' + overCollateralized);
+		const calculated = val + fee + overCollateralized;
+		//setBorrowing(calculated);
 		return calculated;
 	}
 	const [openTab, setOpenTab] = React.useState(1);
@@ -448,41 +632,15 @@ export default function Body(props: {
 	const [result, setResult] = useState<IResult | null>(null);
 	const [pendingRequest, setPendingRequest] = useState(false);
 	const [pendingSubmissions, setPendingSubmissions] = useState([]);
-	const [newAmount, setNewAmount] = useState('');
-	const [newAmount2, setNewAmount2] = useState('');
-	const [newAmount3, setNewAmount3] = useState('');
-	const [dataLogicSig, setDataLogicSig] = useState([]);
+
 	useEffect(() => {
 		console.log('render');
-		//loadData();
-		makeLogic();
-		//console.log(dataLogicSig);
+
 		return () => {
 			console.log('return from change, CleanUP');
 		};
 	}, [userInput]);
-	/*
-	{dataLogicSig.map((record) => {
-					<div key={record.id}>
-						{record.userId}, {record.title}
-					</div>;
-				})}
-	*/
 
-	const loadData = async () => {
-		const api = `https://jsonplaceholder.typicode.com/posts`;
-		const result = await fetch(api);
-		const getResult = await result.json();
-		setDataLogicSig(getResult);
-		//await tealProgramMake(100000000);
-	};
-	const makeLogic = async () => {
-		//const api = `https://jsonplaceholder.typicode.com/posts`;
-		//const result = await fetch(api);
-		//const getResult = await result.json();
-		//setDataLogicSig(getResult);
-		//await tealProgramMake(100000000);
-	};
 	async function LatestValue(
 		address: string,
 		chain: ChainType,
@@ -665,8 +823,6 @@ export default function Body(props: {
 							console.log('Signed ONLY with WALLETCONNECT!');
 							return stxn;
 						}
-						console.log('Signing with TestAccount!');
-						return signTxnWithTestAccount(txnsToSign[group][groupIndex].txn);
 					});
 				}
 			);
@@ -915,6 +1071,7 @@ export default function Body(props: {
 					);
 					console.log(`Transaction confirmed at round ${confirmedRound}`);
 					await LatestValue(address, chain, tokenType);
+					await LatestValue(address, chain, 1);
 				} catch (err) {
 					setPendingSubmissions((prevPendingSubmissions) =>
 						prevPendingSubmissions.map((v, i) => {
@@ -1101,10 +1258,11 @@ export default function Body(props: {
 						onClick={() => setUserInput(0)}
 					/>
 					{openTab === 1 && (
-						<button hidden type='submit' onClick={Borrow}>
-							{' '}
-							Borrow{' '}
-						</button>
+						<>
+							<button hidden type='submit' onClick={Borrow}>
+								Borrow
+							</button>
+						</>
 					)}
 					{openTab === 2 && (
 						<button hidden type='submit' onClick={Repay}>
@@ -1129,20 +1287,43 @@ export default function Body(props: {
 				</form>
 				{openTab === 1 && (
 					<>
-						<span className='pr-2 text-indigo-400'>
-							USDC {`${borrowAmount(userInput)}`}
-							{/* <p ref={algoInputRef} className='text-pink-600'>
-									{`${formatBigNumWithDecimals(
-										USDCtoken.amount,
-										USDCtoken.decimals
-									)} ${USDCtoken.unitName || 'units'}`}{' '}
-								</p> */}
-						</span>
+						<form className='flex w-full mt-5 hover:shadow-lg focus-within:shadow-lg max-w-md rounded-full border border-gray-200 px-5 py-3 items-center sm:max-w-xl lg:max-w-2xl'>
+							<p className='relative px-7 py-2 rounded-md leading-none flex items-center divide-x divide-gray-500'>
+								{/* <span className='pr-2 text-indigo-400'>
+									USDC
+								</span> */}
+								<span
+									className='pr-2 text-indigo-400 cursor-pointer hover:text-pink-600 transition duration-200'
+									onClick={(e) => {
+										e.preventDefault();
+										maximumAmount(LOFTYtoken, 0, newAmount);
+									}}
+								>
+									MAX
+								</span>
+								<span className='pl-2 text-gray-500'>USDC</span>
+								<input
+									type='number'
+									className='flex-grow focus:outline-none bg-[#FAFAFA]'
+									value={borrowAmount(userInput)}
+									onChange={(e) => setBorrowing(Number(e.target.value))}
+								/>
+							</p>
+						</form>
 
 						<div className='flex flex-col w-1/2 space-y-2 justify-center mt-7 sm:space-y-0 sm:flex-row sm:space-x-4'>
-							<button onClick={Borrow} className='btn'>
-								Borrow
-							</button>
+							{Borrowscenarios.map(({ name, scenario1 }) => (
+								<button
+									className='btn'
+									key={name}
+									onClick={(e) => {
+										e.preventDefault();
+										signTxnLogic(scenario1, connector, address, chain, 0);
+									}}
+								>
+									{name}
+								</button>
+							))}
 							<button
 								onClick={(e) => {
 									e.preventDefault();
@@ -1158,13 +1339,13 @@ export default function Body(props: {
 				{/* className='relative px-6 py-1 sm:px-7 sm:py-2 rounded-md leading-none flex items-center bg-[#18393a] text-gray-100' */}
 				{openTab === 2 && (
 					<div className='flex flex-col w-1/2 space-y-2 justify-center mt-8 sm:space-y-0 sm:flex-row sm:space-x-4'>
-						{scenarios.map(({ name, scenario1 }) => (
+						{Repayscenarios.map(({ name, scenario1 }) => (
 							<button
 								className='btn'
 								key={name}
 								onClick={(e) => {
 									e.preventDefault();
-									signTxnScenario(scenario1, connector, address, chain, 1);
+									signTxnLogic(scenario1, connector, address, chain, 1);
 								}}
 							>
 								{name}
@@ -1173,26 +1354,31 @@ export default function Body(props: {
 					</div>
 				)}
 				{openTab === 3 && (
-					<div className='flex flex-col w-1/2 space-y-2 justify-center mt-8 sm:space-y-0 sm:flex-row sm:space-x-4'>
-						<button
-							onClick={(e) => {
-								e.preventDefault();
-								stake();
-								LatestValue(address, chain, 1);
-							}}
-							className='btn'
-						>
-							Stake
-						</button>
+					<div
+						onClick={(e) => {
+							e.preventDefault();
+							LatestValue(address, chain, 1);
+						}}
+						className='flex flex-col w-1/2 space-y-2 justify-center mt-8 sm:space-y-0 sm:flex-row sm:space-x-4'
+					>
 						{/* <AlgoSignerLsig /> */}
-						<MyalgoConnect amount={10000000} />
+						{/* <MyalgoConnect amount={userInput} /> */}
 					</div>
 				)}
 				{openTab === 4 && (
 					<div className='flex flex-col w-1/2 space-y-2 justify-center mt-8 sm:space-y-0 sm:flex-row sm:space-x-4'>
-						<button onClick={claimUSDC} className='btn'>
-							Claim USDC
-						</button>
+						{Claimscenarios.map(({ name, scenario1 }) => (
+							<button
+								className='btn'
+								key={name}
+								onClick={(e) => {
+									e.preventDefault();
+									signTxnLogic(scenario1, connector, address, chain, 2);
+								}}
+							>
+								{name}
+							</button>
+						))}
 					</div>
 				)}
 			</form>

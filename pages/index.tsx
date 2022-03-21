@@ -9,39 +9,13 @@ import {
 	apiGetTxnParams,
 	apiSubmitTransactions,
 	ChainType,
-	tealProgramMake,
-	testNetClientalgod,
 } from './helpers/api';
 import { IAssetData, IWalletTransaction, SignTxnParams } from './helpers/types';
 import Modal from '../components/Modal';
 import Loader from '../components/Loader';
 import Header from '../components/Header';
 import Body from '../components/Body';
-import ExampleSigner from '../components/ExampleSigner';
-import MyAlgoConnect from '@randlabs/myalgo-connect';
 import HeroHome from '../components/HeroHome';
-/*
-export async function MyalgoLsig(amount: number | bigint) {
-	const myAlgoConnect = new MyAlgoConnect({ disableLedgerNano: false });
-
-	const settings = {
-		shouldSelectOneAccount: true,
-		openManager: false,
-	};
-
-	const accounts = await myAlgoConnect.connect(settings);
-	console.log(accounts);
-	const sender = accounts[0].address;
-	//const signedTxn = await myAlgoConnect.signTransaction(txn.toByte());
-	//const lsig = algosdk.makeLogicSig(new Uint8Array(Buffer.from(await tealProgramMake(10000000), "base64")));
-	//const lsig = new algosdk.LogicSigAccount(program, args);
-	const lsig = await tealProgramMake(amount);
-	const lsigs = await myAlgoConnect.signLogicSig(lsig, sender);
-
-	return lsigs;
-	//lsig.sig = await myAlgoConnect.signLogicSig(lsig.logic, sender);
-}*/
-//const signedTxn = algosdk.signLogicSigTransaction(txn, lsigs);
 
 interface IResult {
 	method: string;
@@ -443,9 +417,6 @@ class Home extends React.Component<unknown, IAppState> {
 		this.setState({ pendingRequest: true, showModal: true });
 		//await testNetClientalgod.accountApplicationInformation(address,index).do()
 	};
-	public confirmOptin = async () => {
-		await this.scenarios.map(({ name, scenario1 }) => this.signApp(scenario1));
-	};
 
 	public signTxnScenario = async (scenario1: Scenario1) => {
 		const { connector, address, chain } = this.state;
@@ -681,16 +652,13 @@ class Home extends React.Component<unknown, IAppState> {
 								</div>
 							</>
 						) : (
-							<>
-								<p>Here add the configure for NFT</p>
-							</>
+							<></>
 						)}
 					</header>
 					<div>
 						{/* Body */}
 						{!address && !assets.length ? (
 							<>
-								{/* <ExampleSigner /> */}
 								<HeroHome />
 							</>
 						) : (
