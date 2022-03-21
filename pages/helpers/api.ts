@@ -12,7 +12,7 @@ const baseServer = 'https://testnet-algorand.api.purestake.io/ps2';
 const baseServerIndexer = 'https://testnet-algorand.api.purestake.io/idx2';
 const port = '';
 const token = {
-	'X-API-Key': '<Your-API-Here>',
+	'X-API-Key': process.env.NEXT_PUBLIC_PURESTAKE_API,
 };
 
 export const testNetClientalgod = new algosdk.Algodv2(token, baseServer, port);
@@ -44,7 +44,7 @@ export async function tealProgramDispence(
 	let results = await testNetClientalgod.compile(data).do();
 	console.log('Hash = ' + results.hash);
 	console.log('Result = ' + results.result);
-	let myAccount = algosdk.mnemonicToSecretKey(' <memonic-of-dispencer>');
+	let myAccount = algosdk.mnemonicToSecretKey(process.env.TESTACCOUNT_MENMONIC);
 
 	let program = new Uint8Array(Buffer.from(results.result, 'base64'));
 	//let round = params.firstRound + 172800;
