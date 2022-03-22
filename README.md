@@ -2,17 +2,28 @@ This is a [Next.js](https://nextjs.org/) project bootstrapped with [`create-next
 
 ## Getting Started
 
-First, update the (./pages/helpers/api.ts) 'X-API-Key' with your own purestake API-KEY
+First, update the (.env.local) with your own purestake API-KEY, and Firebase config info
 
 ```bash
-const token = {
-	'X-API-Key': '<Your-API-Here>',
-};
+NEXT_PUBLIC_PURESTAKE_API=
+NEXT_PUBLIC_FIREBASE_APIKEY=
+NEXT_PUBLIC_FIREBASE_AUTHDOMAIN=
+NEXT_PUBLIC_FIREBASE_PROJECTID=
+NEXT_PUBLIC_FIREBASE_STOREAGEBUCKET=
+NEXT_PUBLIC_FIREBASE_MESSAGINGSENDERID=
+NEXT_PUBLIC_FIREBASE_APPID=
+NEXT_PUBLIC_FIREBASE_MEASURMENTID=
+TESTACCOUNT_MENMONIC=
 ```
 
 Setup Firebase Realtime Database,
 
 And follow instructions on [https://firebase.google.com/] on how to create Realtime Database
+
+Create the database with this structure
+![Screenshot Firebase database](/firebase_example/firebasedb.jpg)
+
+Import the json files in (/firebase_example) to your firebase Realtime database
 
 First, run the development server:
 
@@ -30,11 +41,3 @@ To learn more about Next.js, take a look at the following resources:
 
 - [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
 - [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js/) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/deployment) for more details.

@@ -16,53 +16,6 @@ export default function AlgoSignerLsig() {
 	const [isError, setIsError] = useState(false);
 	const [pendingRequest, setPendingRequest] = useState(false);
 
-	const action = useCallback(async () => {
-		const from = 'I3SYP4ZHMDUSFUL2BXTVIBZ6I3BOWOKAKP3RDDTZMXXJLBK6XKSJZ7SB5Y';
-		const to = 'GO7DNCP7E22OZB22ZIYMUKWQEOSJJ3VELJXUKG2BYHWSTO7P6PTKVPDVBQ';
-		try {
-			const suggestedParams = await apiGetTxnParams(ChainType.TestNet);
-			console.log(suggestedParams);
-			const txn = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
-				from: from,
-				to: to,
-				amount: 100000,
-				note: new Uint8Array(Buffer.from('Test')),
-				suggestedParams,
-			});
-			const binaryTx = txn.toByte();
-			toggleModal();
-			setIsError(false);
-			await AlgoSigner.connect({
-				ledger: 'TestNet',
-			});
-			setPendingRequest(true);
-
-			const base64Tx = AlgoSigner.encoding.msgpackToBase64(binaryTx);
-			const signedTxs = await AlgoSigner.signTxn([
-				{
-					txn: base64Tx,
-				},
-			]);
-			console.log(signedTxs);
-			setPendingRequest(false);
-
-			const r = await AlgoSigner.send({
-				ledger: 'TestNet',
-				tx: signedTxs[0].blob,
-			});
-			//console.log(r);
-
-			//return JSON.stringify(r, null, 2);
-			return r;
-		} catch (e) {
-			console.error(e);
-			setPendingRequest(false);
-			setIsError(true);
-			//return JSON.stringify(e, null, 2);
-			return e;
-		}
-	}, []);
-
 	const LogicsigMaker = useCallback(async () => {
 		const from = 'I3SYP4ZHMDUSFUL2BXTVIBZ6I3BOWOKAKP3RDDTZMXXJLBK6XKSJZ7SB5Y';
 		const to = 'GO7DNCP7E22OZB22ZIYMUKWQEOSJJ3VELJXUKG2BYHWSTO7P6PTKVPDVBQ';

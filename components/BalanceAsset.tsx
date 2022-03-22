@@ -17,7 +17,7 @@ const BalanceAsset = (props: { asset: IAssetData; Bodyamount: string }) => {
 
 	React.useEffect(() => {
 		console.log('Asset: ' + asset.amount);
-	}, [items]);
+	}, []);
 	return (
 		<div
 			className='flex w-full max-w-2xl items-center p-5 justify-evenly sm:max-w-4xl lg:max-w-5xl'
